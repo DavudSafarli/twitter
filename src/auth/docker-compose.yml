@@ -1,0 +1,10 @@
+version: "3"
+
+services:
+  pg:
+    image: "postgres"
+    command: postgres -c 'max_connections=1024'
+    ports:
+      - 7001:5432
+    environment:
+      POSTGRES_PASSWORD: 'PGPWD123'

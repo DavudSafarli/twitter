@@ -1,6 +1,6 @@
 ## Twitter clone
 
-The goal by building this project is to practice `Event-Sourcing` and varios other technologies.
+The goal by building this project is to practice `Event-Sourcing`, `TDD`, and varios other technologies.
 Techs that will be used in the project:
 - Go
 - Relational Database: Postgres
@@ -24,7 +24,7 @@ Functionalities that comes to my mind:
   - Like/Unlike a tweet
   - Send/Cancel a friend request
   - Accept/reject a friend request
-  - Serch users/tweets
+  - Search users/tweets
 ---
 
 For now, Phase 1 will include functionalities below:
@@ -36,7 +36,12 @@ For now, Phase 1 will include functionalities below:
     - publish an event for `SocialGraphBuilder`
   - Login
     - check username and password, return a token
+      |   Path  |Method|
+      |---------|------|
+      | /signup | POST |
+      | /login  | POST |
 - SearchIngestor
   - listens to topics for various events like `UsedSignedUp`, `ProfileUpdated`, `TweetPosted` and feeds the search engine(ElasticSearch)
 - SocialGraphBuilder
   - listens to topics for various events like `UsedSignedUp`, `Followed`, `Unfollowed` and builds the graph database(Neo4j)
+
