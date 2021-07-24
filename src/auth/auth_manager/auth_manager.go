@@ -2,42 +2,69 @@ package auth_manager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
-	"github.com/davudsafarli/twitter/src/auth"
 	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Storage interface {
-	CreateUser(ctx context.Context, u auth.User) (auth.User, error)
-	FindUser(ctx context.Context, usnm string) (auth.User, error)
+	CreateUser(ctx context.Context, u User) (User, error)
+	FindUser(ctx context.Context, usnm string) (User, error)
+}
+
+type SearchIngestEvent struct {
+	UserID int
+	Data   []byte
+}
+
+type EventProducerConsumer interface {
+	PublishSearchIngestEvent(ctx context.Context, event SearchIngestEvent) error
+	ConsumeSearchIngestEvent(ctx context.Context, Handler func(event SearchIngestEvent)) io.Closer
 }
 
 type Usecases struct {
-	Storage Storage
+	Storage  Storage
+	Publiser EventProducerConsumer
 }
 
-func NewUsecases(s Storage) Usecases {
+func NewUsecases(s Storage, publisher EventProducerConsumer) Usecases {
 	return Usecases{
-		Storage: s,
+		Storage:  s,
+		Publiser: publisher,
 	}
 }
 
+// TODO: Read from config
 const JWT_SECRET = "jwt_secret"
 
 // SignUpUser registers a new user if the username and email don't exist already.
 // It hashes the password before saving.
 // It also publishes 2 events. One for `SearchIngestor`, and one for `SocialGraphBuilder`.
-func (c Usecases) SignUpUser(ctx context.Context, user auth.User) (auth.User, error) {
+func (c Usecases) SignUpUser(ctx context.Context, user User) (User, error) {
 	hashedPwd, err := hashPassword(user.Password)
 	if err != nil {
-		return auth.User{}, err
+		return User{}, err
 	}
 	user.Password = hashedPwd
-	return c.Storage.CreateUser(ctx, user)
+	user, err = c.Storage.CreateUser(ctx, user)
+	if err != nil {
+		return User{}, err
+	}
+	buf, err := json.Marshal(user)
+	if err != nil {
+		return User{}, err
+	}
+	c.Publiser.PublishSearchIngestEvent(ctx, SearchIngestEvent{
+		UserID: user.ID,
+		Data:   buf,
+	})
+
+	return user, err
 }
 
 // Login creates and retunrs a token for an existing user.
