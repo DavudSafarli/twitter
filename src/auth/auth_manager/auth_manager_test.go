@@ -43,8 +43,7 @@ func TestUsecases(t *testing.T) {
 		require.NotZero(t, createdUser.ID, "created user should have an ID")
 
 		defer func() {
-			err := pg.DeleteUser(context.Background(), createdUser.ID)
-			require.Nil(t, err)
+			require.Nil(t, pg.DeleteUser(context.Background(), createdUser.ID))
 		}()
 
 		// Login a user
@@ -54,8 +53,9 @@ func TestUsecases(t *testing.T) {
 	})
 
 	t.Run(`When new user #Signup, it should be published and Consumer should see that event`, func(t *testing.T) {
+		t.Parallel()
 		user := test_helpers.HopefullyUniqueUser()
-		k := test_helpers.GetEventProducerConsumer()
+		k := test_helpers.GetEventProducerConsumer(t)
 		consumed := auth_manager.SearchIngestEvent{}
 		consumer := k.ConsumeSearchIngestEvent(context.Background(), func(event auth_manager.SearchIngestEvent) {
 			consumed = event
@@ -71,8 +71,7 @@ func TestUsecases(t *testing.T) {
 		require.NotZero(t, createdUser.ID, "created user should have an ID")
 
 		t.Cleanup(func() {
-			err := pg.DeleteUser(context.Background(), createdUser.ID)
-			require.Nil(t, err)
+			require.Nil(t, pg.DeleteUser(context.Background(), createdUser.ID))
 		})
 
 		// expect the event

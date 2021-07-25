@@ -59,7 +59,7 @@ func (c Usecases) SignUpUser(ctx context.Context, user User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	c.Publiser.PublishSearchIngestEvent(ctx, SearchIngestEvent{
+	err = c.Publiser.PublishSearchIngestEvent(ctx, SearchIngestEvent{
 		UserID: user.ID,
 		Data:   buf,
 	})
