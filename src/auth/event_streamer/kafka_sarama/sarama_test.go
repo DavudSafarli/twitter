@@ -16,9 +16,9 @@ func TestSarama(t *testing.T) {
 	topicName := fmt.Sprintf("sarama-test-%016x", rand.Int63())
 	consumerName := fmt.Sprint(topicName, "-consumer")
 	sarama, err := kafka_sarama.NewSarama(kafka_sarama.Options{
-		Brokers:                        test_helpers.BROKERS,
-		SearchIngestionTopic:           topicName,
-		SearchIngestionConsumerGroupID: consumerName,
+		Brokers:                   test_helpers.BROKERS,
+		UserEventsTopic:           topicName,
+		UserEventsConsumerGroupID: consumerName,
 	})
 	require.Nil(t, err)
 	contracts.EventProducerConsumerContract{

@@ -13,9 +13,9 @@ import (
 )
 
 type Options struct {
-	Brokers                        []string
-	SearchIngestionTopic           string
-	SearchIngestionConsumerGroupID string
+	Brokers                   []string
+	UserEventsTopic           string
+	UserEventsConsumerGroupID string
 }
 
 type SaramaClient struct {
@@ -61,7 +61,7 @@ func (k *SaramaClient) setupConsumer() error {
 	config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
-	client, err := sarama.NewConsumerGroup(k.Options.Brokers, k.Options.SearchIngestionConsumerGroupID, config)
+	client, err := sarama.NewConsumerGroup(k.Options.Brokers, k.Options.UserEventsConsumerGroupID, config)
 
 	if err != nil {
 		return err
@@ -70,36 +70,36 @@ func (k *SaramaClient) setupConsumer() error {
 	return nil
 }
 
-// PublishSearchIngestEvent publishes a SearchIngest event
-func (k SaramaClient) PublishSearchIngestEvent(ctx context.Context, event auth_manager.SearchIngestEvent) error {
+// PublishUserEvent publishes a UserEvent
+func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
 	value := &JSONEncoder{Value: event}
 	p, offset, err := k.Writer.SendMessage(&sarama.ProducerMessage{
-		Topic: k.Options.SearchIngestionTopic,
+		Topic: k.Options.UserEventsTopic,
 		Key:   sarama.StringEncoder(fmt.Sprint(event.UserID)),
 		Value: value,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to write message: %w", err)
 	}
-	log.Printf("Message is writter to topic/partition/offset : %v/%v/%v", k.Options.SearchIngestionTopic, p, offset)
+	log.Printf("Message is writter to topic/partition/offset : %v/%v/%v", k.Options.UserEventsTopic, p, offset)
 	return nil
 }
 
-// ConsumeSearchIngestEvent starts a consumer for SearchIngestion events
-func (k SaramaClient) ConsumeSearchIngestEvent(ctx context.Context, HandlerFn func(event auth_manager.SearchIngestEvent)) io.Closer {
+// ConsumeUserEvents starts a consumer for UserEvents
+func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth_manager.UserEvent)) io.Closer {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		wg.Done()
 		consumer := SimpleGroupConsumer{
 			handlerFn: func(buff []byte) {
-				event := auth_manager.SearchIngestEvent{}
+				event := auth_manager.UserEvent{}
 				json.Unmarshal(buff, &event)
 				HandlerFn(event)
 			},
 		}
 		for {
-			if err := k.Reader.Consume(ctx, []string{k.Options.SearchIngestionTopic}, &consumer); err != nil {
+			if err := k.Reader.Consume(ctx, []string{k.Options.UserEventsTopic}, &consumer); err != nil {
 				log.Printf("Error from consumer: %v", err)
 				return
 			}

@@ -22,9 +22,9 @@ type Kafka struct {
 }
 
 type KafkaOptions struct {
-	Brokers                        []string
-	SearchIngestionTopic           string
-	SearchIngestionConsumerGroupID string
+	Brokers                   []string
+	UserEventsTopic           string
+	UserEventsConsumerGroupID string
 }
 
 func NewKafka(Options KafkaOptions) Kafka {
@@ -63,7 +63,7 @@ func DeleteTopic(brokerAddr string, topic string) error {
 func (k *Kafka) setupPublisher() {
 	k.Writer = &kafka.Writer{
 		Addr:         kafka.TCP(k.Options.Brokers...),
-		Topic:        k.Options.SearchIngestionTopic,
+		Topic:        k.Options.UserEventsTopic,
 		Balancer:     &kafka.Hash{},
 		Logger:       log.Default(),
 		MaxAttempts:  10,
@@ -77,8 +77,8 @@ func (k *Kafka) setupConsumer() {
 	k.Reader = kafka.NewReader(
 		kafka.ReaderConfig{
 			Brokers:        k.Options.Brokers,
-			GroupID:        k.Options.SearchIngestionConsumerGroupID,
-			Topic:          k.Options.SearchIngestionTopic,
+			GroupID:        k.Options.UserEventsConsumerGroupID,
+			Topic:          k.Options.UserEventsTopic,
 			MinBytes:       1e3, // 1KB
 			MaxBytes:       1e6, // 1MB
 			MaxWait:        time.Second,
@@ -90,25 +90,25 @@ func (k *Kafka) setupConsumer() {
 	)
 }
 
-func (k Kafka) PublishSearchIngestEvent(ctx context.Context, event auth_manager.SearchIngestEvent) error {
+func (k Kafka) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
 	value, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 	key, _ := json.Marshal(event.UserID)
 	err = k.Writer.WriteMessages(ctx, kafka.Message{
-		// Topic: k.Options.SearchIngestionTopic,
+		// Topic: k.Options.UserEventsTopic,
 		Key:   key,
 		Value: value,
 	})
 	if err != nil {
 		return fmt.Errorf("could not Write Messages: %w", err)
 	}
-	log.Println("WROTE MESSAGE TO", k.Options.SearchIngestionTopic)
+	log.Println("WROTE MESSAGE TO", k.Options.UserEventsTopic)
 	return nil
 }
 
-func (k Kafka) ConsumeSearchIngestEvent(ctx context.Context, HandlerFn func(event auth_manager.SearchIngestEvent)) io.Closer {
+func (k Kafka) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth_manager.UserEvent)) io.Closer {
 	// start reading messages and calling HandlerFn
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -117,7 +117,7 @@ func (k Kafka) ConsumeSearchIngestEvent(ctx context.Context, HandlerFn func(even
 		for {
 			// TODO: ReadMessage can be replaced with FetchMessage to have more control over offset commits,
 			// TODO: Make the consumer HandlerFn idompotent, and commit after calling HandlerFn.
-			log.Println("waiting for a message for topic:", k.Options.SearchIngestionTopic)
+			log.Println("waiting for a message for topic:", k.Options.UserEventsTopic)
 			m, err := k.Reader.ReadMessage(context.Background())
 			if err != nil {
 				log.Println(fmt.Errorf("consumer quit. error while waiting for a message: %w", err))
@@ -126,7 +126,7 @@ func (k Kafka) ConsumeSearchIngestEvent(ctx context.Context, HandlerFn func(even
 			log.Printf("message at topic/partition/offset %v/%v/%v: %s\n", m.Topic, m.Partition, m.Offset, string(m.Key))
 
 			// call HandlerFn
-			event := auth_manager.SearchIngestEvent{}
+			event := auth_manager.UserEvent{}
 			json.Unmarshal(m.Value, &event)
 			HandlerFn(event)
 		}

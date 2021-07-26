@@ -19,13 +19,13 @@ type FakeEventProducerConsumer struct {
 	returnErr bool
 }
 
-func (m FakeEventProducerConsumer) PublishSearchIngestEvent(ctx context.Context, event auth_manager.SearchIngestEvent) error {
+func (m FakeEventProducerConsumer) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
 	if m.returnErr {
 		return fmt.Errorf("err")
 	}
 	return nil
 }
-func (m FakeEventProducerConsumer) ConsumeSearchIngestEvent(ctx context.Context, Handler func(event auth_manager.SearchIngestEvent)) io.Closer {
+func (m FakeEventProducerConsumer) ConsumeUserEvents(ctx context.Context, Handler func(event auth_manager.UserEvent)) io.Closer {
 	return nil
 }
 
@@ -56,8 +56,8 @@ func TestUsecases(t *testing.T) {
 		t.Parallel()
 		user := test_helpers.HopefullyUniqueUser()
 		k := test_helpers.GetEventProducerConsumer(t)
-		consumed := auth_manager.SearchIngestEvent{}
-		consumer := k.ConsumeSearchIngestEvent(context.Background(), func(event auth_manager.SearchIngestEvent) {
+		consumed := auth_manager.UserEvent{}
+		consumer := k.ConsumeUserEvents(context.Background(), func(event auth_manager.UserEvent) {
 			consumed = event
 		})
 		t.Cleanup(func() {
@@ -76,7 +76,7 @@ func TestUsecases(t *testing.T) {
 
 		// expect the event
 		buf, _ := json.Marshal(createdUser)
-		expected := auth_manager.SearchIngestEvent{
+		expected := auth_manager.UserEvent{
 			UserID: createdUser.ID,
 			Data:   buf,
 		}

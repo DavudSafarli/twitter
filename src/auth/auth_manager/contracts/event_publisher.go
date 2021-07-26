@@ -22,16 +22,16 @@ func (c EventProducerConsumerContract) Test(t *testing.T) {
 	t.Run(`Published event will eventually be consumed by Consumer`, func(t *testing.T) {
 		data := fmt.Sprint(rand.New(rand.NewSource(time.Now().UnixNano())).Intn(999999))
 		buf := []byte(data)
-		publishedEvent := auth_manager.SearchIngestEvent{
+		publishedEvent := auth_manager.UserEvent{
 			UserID: 1,
 			Data:   buf,
 		}
 		// publish event
-		require.Nil(t, c.Subject.PublishSearchIngestEvent(context.Background(), publishedEvent))
+		require.Nil(t, c.Subject.PublishUserEvent(context.Background(), publishedEvent))
 
-		consumedEvent := auth_manager.SearchIngestEvent{}
+		consumedEvent := auth_manager.UserEvent{}
 		// start consumer
-		consumer := c.Subject.ConsumeSearchIngestEvent(context.Background(), func(event auth_manager.SearchIngestEvent) {
+		consumer := c.Subject.ConsumeUserEvents(context.Background(), func(event auth_manager.UserEvent) {
 			consumedEvent = event
 		})
 		t.Cleanup(func() {

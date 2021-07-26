@@ -32,8 +32,7 @@ For now, Phase 1 will include functionalities below:
 - Auth service
   - Signup
     - create a user with email, username and pwd
-    - publish an event for `SearchIngestor`
-    - publish an event for `SocialGraphBuilder`
+    - publish an event about the Signup
   - Login
     - check username and password, return a token
       |   Path  |Method|

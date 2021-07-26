@@ -17,14 +17,15 @@ type Storage interface {
 	FindUser(ctx context.Context, usnm string) (User, error)
 }
 
-type SearchIngestEvent struct {
+type UserEvent struct {
 	UserID int
+	Type   string
 	Data   []byte
 }
 
 type EventProducerConsumer interface {
-	PublishSearchIngestEvent(ctx context.Context, event SearchIngestEvent) error
-	ConsumeSearchIngestEvent(ctx context.Context, Handler func(event SearchIngestEvent)) io.Closer
+	PublishUserEvent(ctx context.Context, event UserEvent) error
+	ConsumeUserEvents(ctx context.Context, Handler func(event UserEvent)) io.Closer
 }
 
 type Usecases struct {
@@ -44,7 +45,7 @@ const JWT_SECRET = "jwt_secret"
 
 // SignUpUser registers a new user if the username and email don't exist already.
 // It hashes the password before saving.
-// It also publishes 2 events. One for `SearchIngestor`, and one for `SocialGraphBuilder`.
+// It also publishes a UserEvent about the Signup process
 func (c Usecases) SignUpUser(ctx context.Context, user User) (User, error) {
 	hashedPwd, err := hashPassword(user.Password)
 	if err != nil {
@@ -59,7 +60,7 @@ func (c Usecases) SignUpUser(ctx context.Context, user User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	err = c.Publiser.PublishSearchIngestEvent(ctx, SearchIngestEvent{
+	err = c.Publiser.PublishUserEvent(ctx, UserEvent{
 		UserID: user.ID,
 		Data:   buf,
 	})
@@ -98,3 +99,16 @@ func checkPasswordAndHashEquality(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+/*
+
+topic: users
+event types: Signup, ProfileUpdated
+
+topic: social
+event types: FriendRequestSended, FriendRequestAccepted, FriendRequestRejected,
+
+topic: tweet
+event types: TweetPosted, TweetLiked, TweetUnliked,
+
+*/
