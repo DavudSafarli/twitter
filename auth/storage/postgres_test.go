@@ -3,9 +3,9 @@ package storage_test
 import (
 	"testing"
 
-	"github.com/davudsafarli/twitter/src/auth/auth_manager/contracts"
-	"github.com/davudsafarli/twitter/src/auth/storage"
-	"github.com/davudsafarli/twitter/src/auth/test_helpers"
+	"github.com/davudsafarli/twitter/auth/contracts"
+	"github.com/davudsafarli/twitter/auth/storage"
+	"github.com/davudsafarli/twitter/auth/test_helpers"
 	"github.com/stretchr/testify/require"
 )
 

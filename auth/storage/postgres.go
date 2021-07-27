@@ -5,7 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
+	"github.com/davudsafarli/twitter/auth"
 	_ "github.com/lib/pq"
 )
 
@@ -30,7 +30,7 @@ func NewPostgres(connstr string) (postgres, error) {
 	return pg, nil
 }
 
-func (s postgres) CreateUser(ctx context.Context, u auth_manager.User) (auth_manager.User, error) {
+func (s postgres) CreateUser(ctx context.Context, u auth.User) (auth.User, error) {
 	query := s.qb.Insert("users").
 		Columns("email", "username", "password").
 		Values(u.Email, u.Username, u.Password).
@@ -38,12 +38,12 @@ func (s postgres) CreateUser(ctx context.Context, u auth_manager.User) (auth_man
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return auth_manager.User{}, err
+		return auth.User{}, err
 	}
 	row := s.db.QueryRowContext(ctx, sql, args...)
 	err = row.Scan(&u.ID)
 	if err != nil {
-		return auth_manager.User{}, err
+		return auth.User{}, err
 	}
 	return u, nil
 }
@@ -63,20 +63,20 @@ func (s postgres) DeleteUser(ctx context.Context, ID int) error {
 	return nil
 }
 
-func (s postgres) FindUser(ctx context.Context, usnm string) (auth_manager.User, error) {
+func (s postgres) FindUser(ctx context.Context, usnm string) (auth.User, error) {
 	query := s.qb.Select("id", "email", "username", "password").From("users").
 		Where(squirrel.Eq{"username": usnm})
 
 	sql, args, err := query.ToSql()
 	if err != nil {
-		return auth_manager.User{}, err
+		return auth.User{}, err
 	}
 	row := s.db.QueryRowContext(ctx, sql, args...)
 
-	u := auth_manager.User{}
+	u := auth.User{}
 
 	if err := row.Scan(&u.ID, &u.Email, &u.Username, &u.Password); err != nil {
-		return auth_manager.User{}, err
+		return auth.User{}, err
 	}
 
 	return u, nil

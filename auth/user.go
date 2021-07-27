@@ -1,4 +1,4 @@
-package auth_manager
+package auth
 
 type User struct {
 	ID       int

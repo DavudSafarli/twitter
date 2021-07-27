@@ -1,4 +1,4 @@
-package auth_manager
+package auth
 
 import (
 	"context"

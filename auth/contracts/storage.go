@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
-	"github.com/davudsafarli/twitter/src/auth/test_helpers"
+	"github.com/davudsafarli/twitter/auth"
+	"github.com/davudsafarli/twitter/auth/test_helpers"
 	"github.com/stretchr/testify/require"
 )
 
 type Subject interface {
-	auth_manager.Storage
+	auth.Storage
 	DeleteUser(ctx context.Context, ID int) error
 }
 
@@ -41,7 +41,7 @@ func (c AuthStorageContract) Test(t *testing.T) {
 		t.Parallel()
 		foundUser, err := c.Subject.FindUser(context.Background(), `username-that-hopefully-doesnt-exist`)
 		require.NotNil(t, err)
-		require.Equal(t, foundUser, auth_manager.User{})
+		require.Equal(t, foundUser, auth.User{})
 
 	})
 }

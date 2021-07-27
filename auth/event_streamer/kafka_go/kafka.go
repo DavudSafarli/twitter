@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
+	"github.com/davudsafarli/twitter/auth"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -90,7 +90,7 @@ func (k *Kafka) setupConsumer() {
 	)
 }
 
-func (k Kafka) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
+func (k Kafka) PublishUserEvent(ctx context.Context, event auth.UserEvent) error {
 	value, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (k Kafka) PublishUserEvent(ctx context.Context, event auth_manager.UserEven
 	return nil
 }
 
-func (k Kafka) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth_manager.UserEvent)) io.Closer {
+func (k Kafka) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth.UserEvent)) io.Closer {
 	// start reading messages and calling HandlerFn
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -126,7 +126,7 @@ func (k Kafka) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth_
 			log.Printf("message at topic/partition/offset %v/%v/%v: %s\n", m.Topic, m.Partition, m.Offset, string(m.Key))
 
 			// call HandlerFn
-			event := auth_manager.UserEvent{}
+			event := auth.UserEvent{}
 			json.Unmarshal(m.Value, &event)
 			HandlerFn(event)
 		}

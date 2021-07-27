@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/Shopify/sarama"
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
+	"github.com/davudsafarli/twitter/auth"
 )
 
 type Options struct {
@@ -71,7 +71,7 @@ func (k *SaramaClient) setupConsumer() error {
 }
 
 // PublishUserEvent publishes a UserEvent
-func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
+func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth.UserEvent) error {
 	value := &JSONEncoder{Value: event}
 	p, offset, err := k.Writer.SendMessage(&sarama.ProducerMessage{
 		Topic: k.Options.UserEventsTopic,
@@ -86,14 +86,14 @@ func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth_manager.U
 }
 
 // ConsumeUserEvents starts a consumer for UserEvents
-func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth_manager.UserEvent)) io.Closer {
+func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth.UserEvent)) io.Closer {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		wg.Done()
 		consumer := SimpleGroupConsumer{
 			handlerFn: func(buff []byte) {
-				event := auth_manager.UserEvent{}
+				event := auth.UserEvent{}
 				json.Unmarshal(buff, &event)
 				HandlerFn(event)
 			},

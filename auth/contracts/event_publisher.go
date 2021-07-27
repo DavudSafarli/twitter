@@ -8,30 +8,30 @@ import (
 	"time"
 
 	"github.com/adamluzsi/testcase"
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
+	"github.com/davudsafarli/twitter/auth"
 	"github.com/stretchr/testify/require"
 )
 
 // \/----TEST---\/
 
 type EventProducerConsumerContract struct {
-	Subject auth_manager.EventProducerConsumer
+	Subject auth.EventProducerConsumer
 }
 
 func (c EventProducerConsumerContract) Test(t *testing.T) {
 	t.Run(`Published event will eventually be consumed by Consumer`, func(t *testing.T) {
 		data := fmt.Sprint(rand.New(rand.NewSource(time.Now().UnixNano())).Intn(999999))
 		buf := []byte(data)
-		publishedEvent := auth_manager.UserEvent{
+		publishedEvent := auth.UserEvent{
 			UserID: 1,
 			Data:   buf,
 		}
 		// publish event
 		require.Nil(t, c.Subject.PublishUserEvent(context.Background(), publishedEvent))
 
-		consumedEvent := auth_manager.UserEvent{}
+		consumedEvent := auth.UserEvent{}
 		// start consumer
-		consumer := c.Subject.ConsumeUserEvents(context.Background(), func(event auth_manager.UserEvent) {
+		consumer := c.Subject.ConsumeUserEvents(context.Background(), func(event auth.UserEvent) {
 			consumedEvent = event
 		})
 		t.Cleanup(func() {

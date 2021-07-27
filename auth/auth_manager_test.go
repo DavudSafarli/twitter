@@ -1,4 +1,4 @@
-package auth_manager_test
+package auth_test
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/adamluzsi/testcase"
-	"github.com/davudsafarli/twitter/src/auth/auth_manager"
-	"github.com/davudsafarli/twitter/src/auth/storage"
-	"github.com/davudsafarli/twitter/src/auth/test_helpers"
+	"github.com/davudsafarli/twitter/auth"
+	"github.com/davudsafarli/twitter/auth/storage"
+	"github.com/davudsafarli/twitter/auth/test_helpers"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,13 +19,13 @@ type FakeEventProducerConsumer struct {
 	returnErr bool
 }
 
-func (m FakeEventProducerConsumer) PublishUserEvent(ctx context.Context, event auth_manager.UserEvent) error {
+func (m FakeEventProducerConsumer) PublishUserEvent(ctx context.Context, event auth.UserEvent) error {
 	if m.returnErr {
 		return fmt.Errorf("err")
 	}
 	return nil
 }
-func (m FakeEventProducerConsumer) ConsumeUserEvents(ctx context.Context, Handler func(event auth_manager.UserEvent)) io.Closer {
+func (m FakeEventProducerConsumer) ConsumeUserEvents(ctx context.Context, Handler func(event auth.UserEvent)) io.Closer {
 	return nil
 }
 
@@ -36,7 +36,7 @@ func TestUsecases(t *testing.T) {
 	t.Run(`User can #Login after #Signup`, func(t *testing.T) {
 		user := test_helpers.HopefullyUniqueUser()
 		fake := FakeEventProducerConsumer{}
-		uc := auth_manager.NewUsecases(pg, fake)
+		uc := auth.NewUsecases(pg, fake)
 		// Sign up a user
 		createdUser, err := uc.SignUpUser(context.Background(), user)
 		require.Nil(t, err)
@@ -56,15 +56,15 @@ func TestUsecases(t *testing.T) {
 		t.Parallel()
 		user := test_helpers.HopefullyUniqueUser()
 		k := test_helpers.GetEventProducerConsumer(t)
-		consumed := auth_manager.UserEvent{}
-		consumer := k.ConsumeUserEvents(context.Background(), func(event auth_manager.UserEvent) {
+		consumed := auth.UserEvent{}
+		consumer := k.ConsumeUserEvents(context.Background(), func(event auth.UserEvent) {
 			consumed = event
 		})
 		t.Cleanup(func() {
 			require.Nil(t, consumer.Close())
 		})
 
-		uc := auth_manager.NewUsecases(pg, k)
+		uc := auth.NewUsecases(pg, k)
 		// Sign up a user
 		createdUser, err := uc.SignUpUser(context.Background(), user)
 		require.Nil(t, err)
@@ -76,7 +76,7 @@ func TestUsecases(t *testing.T) {
 
 		// expect the event
 		buf, _ := json.Marshal(createdUser)
-		expected := auth_manager.UserEvent{
+		expected := auth.UserEvent{
 			UserID: createdUser.ID,
 			Data:   buf,
 		}
