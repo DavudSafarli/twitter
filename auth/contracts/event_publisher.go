@@ -2,8 +2,7 @@ package contracts
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
+	"io"
 	"testing"
 	"time"
 
@@ -15,32 +14,44 @@ import (
 // \/----TEST---\/
 
 type EventProducerConsumerContract struct {
-	Subject auth.EventProducerConsumer
+	Subject interface {
+		auth.EventProducerConsumer
+		StartConsume(ctx context.Context) io.Closer
+	}
 }
 
 func (c EventProducerConsumerContract) Test(t *testing.T) {
 	t.Run(`Published event will eventually be consumed by Consumer`, func(t *testing.T) {
-		data := fmt.Sprint(rand.New(rand.NewSource(time.Now().UnixNano())).Intn(999999))
-		buf := []byte(data)
-		publishedEvent := auth.UserEvent{
-			UserID: 1,
-			Data:   buf,
+		pubSignupEvent := auth.SignupEvent{
+			User: auth.User{
+				ID:       1,
+				Email:    "email",
+				Username: "uname",
+				Password: "pwd",
+			},
 		}
+		now := time.Now()
 		// publish event
-		require.Nil(t, c.Subject.PublishUserEvent(context.Background(), publishedEvent))
+		require.Nil(t, c.Subject.PublishUserSignupEvent(context.Background(), pubSignupEvent))
 
-		consumedEvent := auth.UserEvent{}
+		var consumedEvent auth.ConsumedSignupEvent
 		// start consumer
-		consumer := c.Subject.ConsumeUserEvents(context.Background(), func(event auth.UserEvent) {
+		c.Subject.RegisterUserSignupEventConsumer(context.Background(), func(event auth.ConsumedSignupEvent) {
 			consumedEvent = event
 		})
+		consumer := c.Subject.StartConsume(context.Background())
 		t.Cleanup(func() {
 			require.Nil(t, consumer.Close())
 		})
 
-		r := testcase.Retry{Strategy: testcase.Waiter{WaitTimeout: 2 * time.Second, WaitDuration: time.Second / 3}}
+		r := testcase.Retry{Strategy: testcase.Waiter{WaitTimeout: 10 * time.Second, WaitDuration: time.Second}}
 		r.Assert(t, func(tb testing.TB) {
-			require.Equal(tb, publishedEvent, consumedEvent)
+			if consumedEvent == nil {
+				tb.Fail()
+				return
+			}
+			require.Equal(tb, pubSignupEvent, consumedEvent.SignupEvent())
+			require.InDelta(t, now.Second(), consumedEvent.Timestamp().Second(), float64(5*time.Second))
 		})
 	})
 }

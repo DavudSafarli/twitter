@@ -2,10 +2,8 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -15,17 +13,6 @@ import (
 type Storage interface {
 	CreateUser(ctx context.Context, u User) (User, error)
 	FindUser(ctx context.Context, usnm string) (User, error)
-}
-
-type UserEvent struct {
-	UserID int
-	Type   string
-	Data   []byte
-}
-
-type EventProducerConsumer interface {
-	PublishUserEvent(ctx context.Context, event UserEvent) error
-	ConsumeUserEvents(ctx context.Context, Handler func(event UserEvent)) io.Closer
 }
 
 type Usecases struct {
@@ -56,13 +43,8 @@ func (c Usecases) SignUpUser(ctx context.Context, user User) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	buf, err := json.Marshal(user)
-	if err != nil {
-		return User{}, err
-	}
-	err = c.Publiser.PublishUserEvent(ctx, UserEvent{
-		UserID: user.ID,
-		Data:   buf,
+	err = c.Publiser.PublishUserSignupEvent(ctx, SignupEvent{
+		User: user,
 	})
 
 	return user, err

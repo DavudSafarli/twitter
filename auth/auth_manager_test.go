@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -15,18 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// FakeEventProducerConsumer is an Empty supplier for now.
+// Todo(davud): Make it real inmemory fake and move to event_streamer package later
 type FakeEventProducerConsumer struct {
 	returnErr bool
 }
 
-func (m FakeEventProducerConsumer) PublishUserEvent(ctx context.Context, event auth.UserEvent) error {
+func (m FakeEventProducerConsumer) PublishUserSignupEvent(ctx context.Context, event auth.SignupEvent) error {
 	if m.returnErr {
 		return fmt.Errorf("err")
 	}
 	return nil
 }
-func (m FakeEventProducerConsumer) ConsumeUserEvents(ctx context.Context, Handler func(event auth.UserEvent)) io.Closer {
-	return nil
+
+func (m FakeEventProducerConsumer) RegisterUserSignupEventConsumer(ctx context.Context, Handler func(event auth.ConsumedSignupEvent)) {
+}
+
+func (m FakeEventProducerConsumer) StartConsumer(ctx context.Context) io.Closer {
+	return io.NopCloser(nil)
 }
 
 func TestUsecases(t *testing.T) {
@@ -56,10 +61,11 @@ func TestUsecases(t *testing.T) {
 		t.Parallel()
 		user := test_helpers.HopefullyUniqueUser()
 		k := test_helpers.GetEventProducerConsumer(t)
-		consumed := auth.UserEvent{}
-		consumer := k.ConsumeUserEvents(context.Background(), func(event auth.UserEvent) {
-			consumed = event
+		var consumedEvent auth.ConsumedSignupEvent
+		k.RegisterUserSignupEventConsumer(context.Background(), func(event auth.ConsumedSignupEvent) {
+			consumedEvent = event
 		})
+		consumer := k.StartConsume(context.Background())
 		t.Cleanup(func() {
 			require.Nil(t, consumer.Close())
 		})
@@ -74,15 +80,17 @@ func TestUsecases(t *testing.T) {
 			require.Nil(t, pg.DeleteUser(context.Background(), createdUser.ID))
 		})
 
-		// expect the event
-		buf, _ := json.Marshal(createdUser)
-		expected := auth.UserEvent{
-			UserID: createdUser.ID,
-			Data:   buf,
+		expected := auth.SignupEvent{
+			User: createdUser,
 		}
 		r := testcase.Retry{Strategy: testcase.Waiter{WaitTimeout: 2 * time.Second, WaitDuration: time.Second / 3}}
 		r.Assert(t, func(tb testing.TB) {
-			require.Equal(tb, expected, consumed)
+			if consumedEvent == nil {
+				tb.Fail()
+				return
+			}
+			require.Equal(tb, expected, consumedEvent.SignupEvent())
+			require.InDelta(t, time.Now().Second(), consumedEvent.Timestamp().Second(), float64(5*time.Second))
 		})
 	})
 }

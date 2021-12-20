@@ -1,7 +1,9 @@
 package test_helpers
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"testing"
 	"time"
@@ -25,7 +27,12 @@ func HopefullyUniqueUser() auth.User {
 	}
 }
 
-func GetEventProducerConsumer(t *testing.T) auth.EventProducerConsumer {
+type EventStreamingTest interface {
+	auth.EventProducerConsumer
+	StartConsume(ctx context.Context) io.Closer
+}
+
+func GetEventProducerConsumer(t *testing.T) EventStreamingTest {
 	topicName := fmt.Sprintf("topic-for-test-%016x", random.Int63())
 	consumerID := fmt.Sprint(topicName, "-consumer")
 	k, err := kafka_sarama.NewSarama(kafka_sarama.Options{
@@ -37,5 +44,5 @@ func GetEventProducerConsumer(t *testing.T) auth.EventProducerConsumer {
 	t.Cleanup(func() {
 		require.Nil(t, kafka_sarama.DeleteTopic(BROKERS, topicName))
 	})
-	return k
+	return &k
 }

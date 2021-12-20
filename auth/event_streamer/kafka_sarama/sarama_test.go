@@ -22,7 +22,7 @@ func TestSarama(t *testing.T) {
 	})
 	require.Nil(t, err)
 	contracts.EventProducerConsumerContract{
-		Subject: sarama,
+		Subject: &sarama,
 	}.Test(t)
 	t.Cleanup(func() {
 		require.Nil(t, kafka_sarama.DeleteTopic(test_helpers.BROKERS, topicName))

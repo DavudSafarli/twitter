@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/davudsafarli/twitter/auth"
 )
+
+var decoder JSONEncoderDecoder
 
 type Options struct {
 	Brokers                   []string
@@ -22,6 +24,10 @@ type SaramaClient struct {
 	Options Options
 	Writer  sarama.SyncProducer
 	Reader  sarama.ConsumerGroup
+
+	handlers struct {
+		signupEventHandler func(event auth.ConsumedSignupEvent)
+	}
 }
 
 // NewSarama creates a new KafkaClient using Sarama Go Library
@@ -62,7 +68,6 @@ func (k *SaramaClient) setupConsumer() error {
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	client, err := sarama.NewConsumerGroup(k.Options.Brokers, k.Options.UserEventsConsumerGroupID, config)
-
 	if err != nil {
 		return err
 	}
@@ -70,12 +75,32 @@ func (k *SaramaClient) setupConsumer() error {
 	return nil
 }
 
-// PublishUserEvent publishes a UserEvent
-func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth.UserEvent) error {
-	value := &JSONEncoder{Value: event}
+// KafkaMessage is the final struct that is encoded and sent to a kafka topic as a value
+type KafkaMessage struct {
+	PublishedAt     time.Time
+	UserSignupEvent auth.SignupEvent `json:",omitempty"`
+}
+
+// Timestamp returns the time that kafka message was sent to the kafka topic
+func (msg KafkaMessage) Timestamp() time.Time {
+	return msg.PublishedAt
+}
+
+// SignupEvent returns the currenly consumed SignupEvent
+func (msg KafkaMessage) SignupEvent() auth.SignupEvent {
+	return msg.UserSignupEvent
+}
+
+// PublishUserSignupEvent publishes a UserEvent
+func (k SaramaClient) PublishUserSignupEvent(ctx context.Context, event auth.SignupEvent) error {
+	msg := KafkaMessage{
+		PublishedAt:     time.Now(),
+		UserSignupEvent: event,
+	}
+	value := &JSONEncoderDecoder{Value: msg}
 	p, offset, err := k.Writer.SendMessage(&sarama.ProducerMessage{
 		Topic: k.Options.UserEventsTopic,
-		Key:   sarama.StringEncoder(fmt.Sprint(event.UserID)),
+		Key:   sarama.StringEncoder(fmt.Sprint(event.ID)),
 		Value: value,
 	})
 	if err != nil {
@@ -85,17 +110,25 @@ func (k SaramaClient) PublishUserEvent(ctx context.Context, event auth.UserEvent
 	return nil
 }
 
-// ConsumeUserEvents starts a consumer for UserEvents
-func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(event auth.UserEvent)) io.Closer {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+// UnregisterUserSignupEventConsumer unregisters the handler function for consuming "UserSignupEvent"s
+func (k *SaramaClient) UnregisterUserSignupEventConsumer(ctx context.Context, handlerFn func(event auth.ConsumedSignupEvent)) {
+	k.handlers.signupEventHandler = nil
+}
+
+// RegisterUserSignupEventConsumer registers a handler function for consuming "UserSignupEvent"s
+func (k *SaramaClient) RegisterUserSignupEventConsumer(ctx context.Context, handlerFn func(event auth.ConsumedSignupEvent)) {
+	k.handlers.signupEventHandler = handlerFn
+}
+
+// StartConsume starts listening kafka topics and send messages to the registered consumers.
+// It can see the registered handlers, and only listen the topics that are have handlers for
+func (k *SaramaClient) StartConsume(ctx context.Context) io.Closer {
 	go func() {
-		wg.Done()
 		consumer := SimpleGroupConsumer{
-			handlerFn: func(buff []byte) {
-				event := auth.UserEvent{}
-				json.Unmarshal(buff, &event)
-				HandlerFn(event)
+			handlerFn: func(msg KafkaMessage) {
+				if ok := (msg.UserSignupEvent != auth.SignupEvent{}); ok {
+					k.handlers.signupEventHandler(msg)
+				}
 			},
 		}
 		for {
@@ -105,7 +138,6 @@ func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(even
 			}
 		}
 	}()
-	wg.Wait()
 	return k.Reader
 }
 
@@ -113,40 +145,53 @@ func (k SaramaClient) ConsumeUserEvents(ctx context.Context, HandlerFn func(even
 // It calls the given handlerFn function and commits the message.
 type SimpleGroupConsumer struct {
 	// TODO: add error return type
-	handlerFn func(buf []byte)
+	handlerFn func(msg KafkaMessage)
 }
 
 func (c SimpleGroupConsumer) Setup(sarama.ConsumerGroupSession) error {
 	return nil
 }
+
 func (c SimpleGroupConsumer) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
+
 func (c SimpleGroupConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
 		log.Printf("Message claimed: value = %s, timestamp = %v, topic = %s", string(message.Value), message.Timestamp, message.Topic)
-		c.handlerFn(message.Value)
+		v, err := decoder.Decode(message.Value)
+		if err != nil {
+			log.Printf("sarama failed to decode an incoming kafka message: %v", err)
+		}
+		c.handlerFn(v)
 		session.MarkMessage(message, "")
 	}
 	return nil
 }
 
 // ------- JSON encoder
-// JSONEncoder satisfies sarama.Encoder interface and used to publish events.
+// JSONEncoderDecoder satisfies sarama.Encoder interface and used to publish events.
 // Uses json#Marshall to encode the Value
-type JSONEncoder struct {
-	Value   interface{}
+type JSONEncoderDecoder struct {
+	Value   KafkaMessage
 	encoded []byte
 	err     error
 }
 
-func (e *JSONEncoder) Encode() ([]byte, error) {
+func (e *JSONEncoderDecoder) Decode(buf []byte) (KafkaMessage, error) {
+	v := KafkaMessage{}
+	err := json.Unmarshal(buf, &v)
+	return v, err
+}
+
+func (e *JSONEncoderDecoder) Encode() ([]byte, error) {
 	if e.encoded == nil && e.err == nil {
 		e.encoded, e.err = json.Marshal(e.Value)
 	}
 	return e.encoded, e.err
 }
-func (e *JSONEncoder) Length() int {
+
+func (e *JSONEncoderDecoder) Length() int {
 	if e.encoded == nil && e.err == nil {
 		e.encoded, e.err = json.Marshal(e.Value)
 	}
